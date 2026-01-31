@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Köseoğlu Takip">
+    <title>Köseoğlu Elektrik v13.0 - Arşiv & Stok Takip</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        /* Genel Tasarım ve Mobil Uyumluluk */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f0f0f5; margin: 0; padding: 10px; user-select: none; }
+        .container { max-width: 600px; margin: auto; }
+        
+        /* Başlık Alanı */
+        .header { background: #1c1c1e; color: #ffd60a; text-align: center; padding: 15px 10px; border-radius: 12px; border-bottom: 5px solid #ffd60a; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .header img { max-width: 100%; height: auto; max-height: 80px; display: block; margin: 0 auto 10px auto; border-radius: 8px; }
+        
+        /* Bildirim (Toast) Mesajları */
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; }
+        .toast { background: #1c1c1e; color: #ffd60a; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; border-left: 5px solid #ffd60a; font-weight: bold; animation: slideIn 0.5s ease-out; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        /* Sekme Sistemi (Tablar) */
+        .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 15px; }
+        .tab-btn { padding: 14px 5px; border: none; background: #d1d1d6; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 11px; transition: all 0.2s; color: #3a3a3c; }
+        .tab-btn.active { background: #ffd60a; color: #000; transform: scale(0.98); }
+
+        /* Bölümler (Sections) */
+        .section { display: none; background: white; padding: 18px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); animation: fadeIn 0.3s ease-in; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Form Elemanları */
+        input, select, textarea { width: 100%; padding: 14px; margin: 6px 0 10px 0; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; background: #f9f9f9; transition: border 0.3s; }
+        input:focus { border-color: #ffd60a; background: #fff; }
+        .btn-main { width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; background: #1c1c1e; color: #ffd60a; font-size: 15px; transition: active 0.1s; }
+        .btn-main:active { opacity: 0.8; transform: scale(0.98); }
+
+        /* Liste Görünümü */
+        .list-item { border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-top: 12px; position: relative; border-left: 6px solid #ffd60a; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        .del-btn { position: absolute; right: 10px; top: 10px; color: #ff3b30; cursor: pointer; font-size: 11px; border: 1px solid #ff3b30; padding: 3px 7px; border-radius: 6px; font-weight: bold; }
+        .modal { background: #f0f9f4; border: 2px solid #34c759; padding: 12px; border-radius: 12px; margin-top: 12px; display: none; }
+        .price-tag { font-size: 19px; font-weight: bold; color: #28a745; }
+        .stok-text { font-size: 14px; color: #007aff; font-weight: bold; }
+        .footer-text { font-size: 11px; color: #8e8e93; display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #f2f2f7; padding-top: 8px; }
+    </style>
+</head>
+<body onclick="sesiHazirla()">
+
+<audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+<div id="toast-container"></div>
+
+<div class="container">
+    <div class="header">
+        <img src="logo.jpg" alt="Köseoğlu Elektrik Logo">
+        <h3>KÖSEOĞLU ELEKTRİK v13.0</h3>
+    </div>
+
+    <div class="tabs">
+        <button id="btn-servis" class="tab-btn active" onclick="sekmeAc('servis')">SERVİS</button>
+        <button id="btn-kasa" class="tab-btn" onclick="sekmeAc('kasa')">KASA</button>
+        <button id="btn-veresiye" class="tab-btn" onclick="sekmeAc('veresiye')">VERESİYE</button>
+        <button id="btn-fiyat" class="tab-btn" onclick="sekmeAc('fiyat')">FİYAT/STOK</button>
+        <button id="btn-arsiv" class="tab-btn" onclick="sekmeAc('arsiv')">ARŞİV</button>
+    </div>
+
+    <div id="sec-servis" class="section active">
+        <input type="text" id="s_user" placeholder="İşlemi Yapan">
+        <input type="text" id="s_ad" placeholder="Müşteri Adı Soyadı">
+        <input type="tel" id="s_tel" placeholder="Telefon Numarası">
+        <input type="text" id="s_adres" placeholder="Adres Bilgisi">
+        <textarea id="s_is" placeholder="Yapılacak İş Detayı"></textarea>
+        <button class="btn-main" onclick="kaydetServis()">🛠 BEKLEYENLERE EKLE</button>
+        <div id="list-bekleyen"></div>
+    </div>
+
+    <div id="sec-kasa" class="section">
+        <div style="text-align:center; background:#1c1c1e; color:#ffd60a; padding:20px; border-radius:15px; margin-bottom:15px;">
+            <small>TOPLAM KASA DURUMU</small>
+            <h1 id="ana_kasa" style="margin:5px 0 0 0;">0 TL</h1>
+        </div>
+        <input type="text" id="k_user" placeholder="İşlemi Yapan">
+        <select id="k_tip">
+            <option value="gelir">➕ Gelir Ekle</option>
+            <option value="gider">➖ Gider Çıkar</option>
+        </select>
+        <input type="text" id="k_not" placeholder="Açıklama">
+        <input type="number" id="k_tl" placeholder="Tutar (TL)">
+        <button class="btn-main" style="background:#007aff; color:white;" onclick="kaydetKasa()">💰 KASAYA İŞLE</button>
+        <div id="list-kasa"></div>
+    </div>
+
+    <div id="sec-veresiye" class="section">
+        <input type="text" id="v_user" placeholder="İşlemi Yapan">
+        <input type="text" id="v_ad" placeholder="Borçlu Kişi">
+        <input type="number" id="v_tl" placeholder="Borç Tutarı">
+        <textarea id="v_not" placeholder="Hangi işlem için?"></textarea>
+        <button class="btn-main" style="background:#ff3b30; color:white;" onclick="kaydetVeresiye()">🔴 BORCA YAZ</button>
+        <div id="list-veresiye"></div>
+    </div>
+
+    <div id="sec-fiyat" class="section">
+        <h4 style="margin-top:0;">📦 Malzeme Kaydı</h4>
+        <input type="text" id="f_ad" placeholder="Malzeme Adı">
+        <input type="number" id="f_tl" placeholder="Birim Fiyat">
+        <input type="number" id="f_stok" placeholder="Başlangıç Stoğu">
+        <button class="btn-main" style="background:#5856d6; color:white;" onclick="kaydetFiyat()">STOK LİSTESİNE EKLE</button>
+        <hr style="margin:20px 0; opacity:0.2;">
+        <input type="text" id="f_ara" placeholder="Ürünlerde ara..." onkeyup="fiyatAra()">
+        <div id="list-fiyat"></div>
+    </div>
+
+    <div id="sec-arsiv" class="section">
+        <h4 style="margin-top:0;">📂 TAMAMLANAN İŞLER</h4>
+        <button class="btn-main" style="background:#34c759; color:white; margin-bottom:15px;" onclick="pdfKaydet('list-arsiv', 'Servis_Arsivi')">📄 PDF OLARAK İNDİR</button>
+        <div id="list-arsiv"></div>
+    </div>
+</div>
+
+<script>
+    // --- VERİ AYARLARI ---
+    const DB_URL = "https://kose52-34e44-default-rtdb.europe-west1.firebasedatabase.app";
+    let tumFiyatlar = {};
+    let ilkYukleme = true;
+    let sesAktif = false;
+
+    // --- SİSTEM FONKSİYONLARI ---
+    function sesiHazirla() { 
+        if(!sesAktif) { 
+            const s = document.getElementById('notif-sound'); 
+            s.play().then(() => { s.pause(); sesAktif = true; }).catch(e => {}); 
+        } 
+    }
+
+    function bildirimGoster(m) { 
+        const c = document.getElementById('toast-container'); 
+        const t = document.createElement('div'); 
+        t.className = 'toast'; t.innerText = m; 
+        c.appendChild(t); 
+        setTimeout(() => t.remove(), 4000); 
+    }
+
+    function sesCal() { if(sesAktif) { const s = document.getElementById('notif-sound'); s.currentTime = 0; s.play(); } }
+
+    async function verileriGetir() {
+        try {
+            const res = await fetch(`${DB_URL}/.json`);
+            const data = await res.json() || {};
+
+            // Yeni Kayıt Kontrolü
+            let bekleyenKeys = data.bekleyen ? Object.keys(data.bekleyen) : [];
+            let eskiAdet = localStorage.getItem('s_adet') || 0;
+            if (bekleyenKeys.length > eskiAdet && !ilkYukleme) { 
+                bildirimGoster("🔔 YENİ SERVİS KAYDI!");
+                sesCal();
+            }
+            localStorage.setItem('s_adet', bekleyenKeys.length);
+            ilkYukleme = false;
+
+            renderServis(data.bekleyen);
+            renderKasa(data.kasa);
+            renderVeresiye(data.veresiye);
+            renderArsiv(data.arsiv);
+            tumFiyatlar = data.fiyat || {};
+            fiyatListele(tumFiyatlar);
+        } catch(e) { console.error("Bağlantı Hatası:", e); }
+    }
+
+    // --- GÖRÜNÜM (RENDER) FONKSİYONLARI ---
+    function renderServis(bekleyen) {
+        let h = "";
+        if(bekleyen) {
+            Object.keys(bekleyen).reverse().forEach(k => {
+                let o = bekleyen[k];
+                h += `<div class="list-item">
+                    <span class="del-btn" onclick="sil('bekleyen','${k}')">SİL</span>
+                    <b>👤 ${o.a}</b><br><small>📞 ${o.tel} | 📍 ${o.adres}</small><hr style="opacity:0.1">🛠 ${o.b}
+                    <button class="btn-main" style="background:#34c759; color:white; padding:12px; margin-top:10px;" onclick="kapamaFormuAc('${k}')">✅ İŞİ BİTİR</button>
+                    <div id="panel-${k}" class="modal">
+                        <input type="text" id="m-${k}" placeholder="Kullanılan Malzemeler">
+                        <input type="number" id="p-${k}" placeholder="Alınan Ücret (TL)">
+                        <div style="display:flex; gap:10px;">
+                            <button onclick="servisBitir('${k}','kasa')" style="flex:1; background:#28a745; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold;">NAKİT</button>
+                            <button onclick="servisBitir('${k}','veresiye')" style="flex:1; background:#ff9500; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold;">BORÇ</button>
+                        </div>
+                    </div>
+                    <div class="footer-text"><span>🕒 ${o.t}</span> <span>👤 ${o.u}</span></div>
+                </div>`;
+            });
+        }
+        document.getElementById('list-bekleyen').innerHTML = h || "Bekleyen iş bulunmuyor.";
+    }
+
+    async function servisBitir(id, hedef) {
+        const tutar = document.getElementById('p-'+id).value;
+        const mal = document.getElementById('m-'+id).value || "Genel İşçilik";
+        if(!tutar) return alert("Lütfen ücret bilgisini girin!");
+
+        const res = await fetch(`${DB_URL}/bekleyen/${id}.json`);
+        const eskiVeri = await res.json();
+        const zaman = new Date().toLocaleString('tr-TR');
+
+        const arsivVeri = { ...eskiVeri, bitis: zaman, tutar: tutar, malzeme: mal, odeme: hedef };
+        await fetch(`${DB_URL}/arsiv.json`, { method:'POST', body: JSON.stringify(arsivVeri) });
+
+        if(hedef === 'kasa') {
+            await fetch(`${DB_URL}/kasa.json`, { method:'POST', body: JSON.stringify({b:eskiVeri.a + " ("+mal+")", c:tutar, tip:"gelir", t:zaman}) });
+        } else {
+            await fetch(`${DB_URL}/veresiye.json`, { method:'POST', body: JSON.stringify({a:eskiVeri.a, c:tutar, b:mal, t:zaman}) });
+        }
+
+        await fetch(`${DB_URL}/bekleyen/${id}.json`, { method:'DELETE' });
+        bildirimGoster("✅ İşlem başarıyla arşivlendi.");
+        verileriGetir();
+    }
+
+    function renderKasa(kasa) {
+        let topK = 0; let h = "";
+        if(kasa) {
+            Object.keys(kasa).reverse().forEach(k => {
+                let o = kasa[k]; let isG = (o.tip === 'gelir');
+                topK += isG ? Number(o.c) : -Number(o.c);
+                h += `<div class="list-item" style="border-left-color:${isG?'#28a745':'#dc3545'}">
+                    <b>${o.b}</b><br><span style="color:${isG?'#28a745':'#dc3545'}; font-weight:bold;">${isG?'+':'-'}${o.c} TL</span><br>
+                    <small>${o.t}</small>
+                </div>`;
+            });
+        }
+        document.getElementById('ana_kasa').innerText = topK + " TL";
+        document.getElementById('list-kasa').innerHTML = h;
+    }
+
+    function renderVeresiye(v) {
+        let h = "";
+        if(v) {
+            Object.keys(v).reverse().forEach(k => {
+                let o = v[k];
+                h += `<div class="list-item" style="border-left-color:#ff3b30">
+                    <span class="del-btn" onclick="sil('veresiye','${k}')">ÖDENDİ/SİL</span>
+                    <b>👤 ${o.a}</b><br><span style="color:#ff3b30; font-weight:bold; font-size:18px;">${o.c} TL</span><br>
+                    <small>${o.b}</small><div class="footer-text"><span>🕒 ${o.t}</span></div>
+                </div>`;
+            });
+        }
+        document.getElementById('list-veresiye').innerHTML = h;
+    }
+
+    function renderArsiv(arsiv) {
+        let h = "";
+        if(arsiv) {
+            Object.keys(arsiv).reverse().forEach(k => {
+                let o = arsiv[k];
+                h += `<div class="list-item" style="border-left-color:#5856d6;">
+                    <span class="del-btn" onclick="sil('arsiv','${k}')">SİL</span>
+                    <b>👤 ${o.a}</b> <span style="font-size:10px; background:#eee; padding:3px 6px; border-radius:5px; margin-left:5px;">${o.odeme.toUpperCase()}</span><br>
+                    🛠 ${o.b}<br>📦 ${o.malzeme} | <b style="color:#28a745">${o.tutar} TL</b>
+                    <div class="footer-text"><span>🕒 Bitiş: ${o.bitis}</span> <span>👤 ${o.u}</span></div>
+                </div>`;
+            });
+        }
+        document.getElementById('list-arsiv').innerHTML = h || "Arşiv boş.";
+    }
+
+    function fiyatListele(v) {
+        let h = "";
+        Object.keys(v).reverse().forEach(k => {
+            let o = v[k];
+            h += `<div class="list-item" style="border-left-color: #007aff">
+                <span class="del-btn" onclick="sil('fiyat','${k}')">SİL</span>
+                <b>📦 ${o.a}</b><br>
+                <span class="price-tag">${o.c} TL</span> | <span class="stok-text">Stok: ${o.s || 0} Adet</span>
+            </div>`;
+        });
+        document.getElementById('list-fiyat').innerHTML = h || "Stokta ürün bulunmuyor.";
+    }
+
+    // --- KAYIT VE YARDIMCI ARAÇLAR ---
+    async function kaydetServis() {
+        let ad = document.getElementById('s_ad').value; if(!ad) return alert("Müşteri adı zorunludur!");
+        let v = { a:ad, tel:document.getElementById('s_tel').value, adres:document.getElementById('s_adres').value, b:document.getElementById('s_is').value, t:new Date().toLocaleString('tr-TR'), u:document.getElementById('s_user').value || "Sistem" };
+        await fetch(`${DB_URL}/bekleyen.json`, { method:'POST', body: JSON.stringify(v) });
+        temizle();
+    }
+
+    async function kaydetKasa() {
+        let n = document.getElementById('k_not').value; let t = document.getElementById('k_tl').value;
+        if(!n || !t) return alert("Lütfen tüm alanları doldurun!");
+        await fetch(`${DB_URL}/kasa.json`, { method:'POST', body: JSON.stringify({ b:n, c:t, tip:document.getElementById('k_tip').value, t:new Date().toLocaleString('tr-TR'), u:document.getElementById('k_user').value || "Sistem" }) });
+        temizle();
+    }
+
+    async function kaydetVeresiye() {
+        let a = document.getElementById('v_ad').value; let t = document.getElementById('v_tl').value;
+        if(!a || !t) return alert("Lütfen borçlu ve tutar bilgilerini girin!");
+        await fetch(`${DB_URL}/veresiye.json`, { method:'POST', body: JSON.stringify({ a:a, c:t, b:document.getElementById('v_not').value, t:new Date().toLocaleString('tr-TR'), u:document.getElementById('v_user').value || "Sistem" }) });
+        temizle();
+    }
+
+    async function kaydetFiyat() {
+        let a = document.getElementById('f_ad').value; let t = document.getElementById('f_tl').value;
+        if(!a || !t) return alert("Malzeme adı ve fiyat zorunludur!");
+        await fetch(`${DB_URL}/fiyat.json`, { method:'POST', body: JSON.stringify({ a:a, c:t, s:document.getElementById('f_stok').value || 0 }) });
+        bildirimGoster("📦 Malzeme başarıyla eklendi.");
+        temizle();
+    }
+
+    async function sil(t, id) { if(confirm("Bu işlem geri alınamaz. Silmek istediğinize emin misiniz?")) { await fetch(`${DB_URL}/${t}/${id}.json`, { method:'DELETE' }); verileriGetir(); } }
+    
+    function temizle() { document.querySelectorAll('input, textarea').forEach(i => { if(!i.id.includes('user')) i.value = ''; }); verileriGetir(); }
+
+    function sekmeAc(id) { 
+        ['servis','kasa','veresiye','fiyat','arsiv'].forEach(s => { 
+            document.getElementById('sec-'+s).style.display = 'none'; 
+            document.getElementById('btn-'+s).classList.remove('active'); 
+        });
+        document.getElementById('sec-'+id).style.display = 'block'; 
+        document.getElementById('btn-'+id).classList.add('active');
+    }
+
+    function kapamaFormuAc(id) { 
+        let p = document.getElementById('panel-'+id); 
+        p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    }
+    
+    function fiyatAra() {
+        let k = document.getElementById('f_ara').value.toLowerCase();
+        let s = {};
+        Object.keys(tumFiyatlar).forEach(key => { if(tumFiyatlar[key].a.toLowerCase().includes(k)) s[key] = tumFiyatlar[key]; });
+        fiyatListele(s);
+    }
+
+    function pdfKaydet(id, ad) { 
+        const e = document.getElementById(id); 
+        const opt = { margin: 1, filename: ad + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
+        html2pdf().set(opt).from(e).save();
+    }
+
+    // --- BAŞLATICI ---
+    window.onload = verileriGetir;
+    setInterval(verileriGetir, 5000);
+</script>
+</body>
+</html>
